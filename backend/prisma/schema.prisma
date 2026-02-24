@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  REPORTER
+  DEVELOPER
+}
+
+enum TicketType {
+  BUG
+  FEATURE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Severity {
+  S1
+  S2
+  S3
+  S4
+}
+
+enum TicketStatus {
+  NEW
+  TRIAGED
+  IN_PROGRESS
+  BLOCKED
+  READY_FOR_QA
+  DONE
+  CANCELLED
+}
+
+enum Environment {
+  DEV
+  QA
+  PROD
+}
+
+enum AttachmentRoleContext {
+  REPORTER
+  RESOLVER
+}
+
+model User {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  passwordHash     String
+  role             Role
+  createdAt        DateTime  @default(now())
+  ticketsCreated   Ticket[]  @relation("TicketCreatedBy")
+  ticketsAssigned  Ticket[]  @relation("TicketAssignedTo")
+  comments         Comment[]
+  attachments      Attachment[]
+}
+
+model System {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String
+  ownerTeam   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tickets     Ticket[]
+}
+
+model Ticket {
+  id                String        @id @default(cuid())
+  code              String        @unique
+  type              TicketType
+  title             String
+  description       String
+  priority          Priority
+  severity          Severity?
+  status            TicketStatus  @default(NEW)
+  systemId          String
+  createdByUserId   String
+  assignedToUserId  String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  triagedAt         DateTime?
+  startedAt         DateTime?
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+  tags              String[]
+  environment       Environment
+  reproducible      Boolean       @default(true)
+  stepsToReproduce  String?
+  expectedResult    String?
+  actualResult      String?
+  rootCause         String?
+  resolutionSummary String?
+  blockedReason     String?
+
+  system            System        @relation(fields: [systemId], references: [id])
+  createdByUser     User          @relation("TicketCreatedBy", fields: [createdByUserId], references: [id])
+  assignedToUser    User?         @relation("TicketAssignedTo", fields: [assignedToUserId], references: [id])
+  comments          Comment[]
+  attachments       Attachment[]
+
+  @@index([systemId])
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model Comment {
+  id           String       @id @default(cuid())
+  ticketId      String
+  authorUserId  String
+  body          String
+  createdAt     DateTime    @default(now())
+  ticket        Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorUser    User        @relation(fields: [authorUserId], references: [id])
+  attachments   Attachment[]
+
+  @@index([ticketId, createdAt])
+}
+
+model Attachment {
+  id               String                 @id @default(cuid())
+  ticketId          String
+  commentId         String?
+  uploadedByUserId  String
+  roleContext       AttachmentRoleContext
+  fileName          String
+  mimeType          String
+  size              Int
+  url               String
+  createdAt         DateTime               @default(now())
+  ticket            Ticket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  comment           Comment?               @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploadedByUser    User                   @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@index([commentId])
+}
