@@ -54,8 +54,10 @@ export class MetricsService {
       this.prisma.system.findMany({ select: { id: true, key: true, name: true } }),
     ]);
 
-    const kpiOpenTickets = tickets.filter((t) => ![TicketStatus.DONE, TicketStatus.CANCELLED].includes(t.status)).length;
-    const kpiOpenBugs = tickets.filter((t) => t.type === TicketType.BUG && ![TicketStatus.DONE, TicketStatus.CANCELLED].includes(t.status)).length;
+    const closedStatuses: TicketStatus[] = [TicketStatus.DONE, TicketStatus.CANCELLED];
+
+    const kpiOpenTickets = tickets.filter((t) => !closedStatuses.includes(t.status)).length;
+    const kpiOpenBugs = tickets.filter((t) => t.type === TicketType.BUG && !closedStatuses.includes(t.status)).length;
     const kpiPendingFeatures = tickets.filter((t) => t.type === TicketType.FEATURE && t.status !== TicketStatus.DONE && t.status !== TicketStatus.CANCELLED).length;
 
     const resolved30 = tickets.filter((t) => t.resolvedAt && t.resolvedAt >= thirtyDaysAgo);
@@ -104,7 +106,7 @@ export class MetricsService {
           (t) =>
             t.systemId === s.id &&
             t.type === TicketType.BUG &&
-            ![TicketStatus.DONE, TicketStatus.CANCELLED].includes(t.status),
+            !closedStatuses.includes(t.status),
         ).length,
       }))
       .sort((a, b) => b.openBugs - a.openBugs)
@@ -127,7 +129,7 @@ export class MetricsService {
     });
 
     const criticalOpenTickets = tickets
-      .filter((t) => t.priority === Priority.CRITICAL && ![TicketStatus.DONE, TicketStatus.CANCELLED].includes(t.status))
+      .filter((t) => t.priority === Priority.CRITICAL && !closedStatuses.includes(t.status))
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, 10)
       .map((t) => ({
@@ -144,7 +146,7 @@ export class MetricsService {
       }));
 
     const topPendingFeatures = tickets
-      .filter((t) => t.type === TicketType.FEATURE && ![TicketStatus.DONE, TicketStatus.CANCELLED].includes(t.status))
+      .filter((t) => t.type === TicketType.FEATURE && !closedStatuses.includes(t.status))
       .sort((a, b) => {
         const pRank = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }[b.priority] - { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }[a.priority];
         if (pRank !== 0) return pRank;

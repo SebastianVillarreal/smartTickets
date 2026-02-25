@@ -176,10 +176,18 @@ export class TicketsService {
     if (dto.resolutionSummary !== undefined) data.resolutionSummary = dto.resolutionSummary;
     if (dto.blockedReason !== undefined) data.blockedReason = dto.blockedReason;
 
+    const developerAllowedStatuses: TicketStatus[] = [
+      TicketStatus.IN_PROGRESS,
+      TicketStatus.READY_FOR_QA,
+      TicketStatus.DONE,
+      TicketStatus.BLOCKED,
+    ];
+    const resolvedStatuses: TicketStatus[] = [TicketStatus.READY_FOR_QA, TicketStatus.DONE];
+
     if (dto.status) {
       if (
         user.role === Role.DEVELOPER &&
-        ![TicketStatus.IN_PROGRESS, TicketStatus.READY_FOR_QA, TicketStatus.DONE, TicketStatus.BLOCKED].includes(dto.status)
+        !developerAllowedStatuses.includes(dto.status)
       ) {
         throw new ForbiddenException('Developer no puede mover a ese status');
       }
@@ -189,7 +197,7 @@ export class TicketsService {
         data.startedAt = now;
         if (!ticket.triagedAt) data.triagedAt = now;
       }
-      if ([TicketStatus.READY_FOR_QA, TicketStatus.DONE].includes(dto.status) && !ticket.resolvedAt) {
+      if (resolvedStatuses.includes(dto.status) && !ticket.resolvedAt) {
         data.resolvedAt = now;
         if (!ticket.startedAt) data.startedAt = now;
         if (!ticket.triagedAt) data.triagedAt = now;

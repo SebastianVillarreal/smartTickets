@@ -68,7 +68,7 @@ async function main() {
     const type = isBug ? TicketType.BUG : TicketType.FEATURE;
     const priority = rand(priorities);
     const system = rand(systems);
-    const createdBy = users.find((u) => u.role === Role.REPORTER) ?? users[0];
+    const createdBy = users.find((u) => u.role === Role.REPORTER) ?? users[0]!;
     const assignedTo = Math.random() > 0.2 ? users.find((u) => u.role === Role.DEVELOPER) : null;
     const createdAt = addHours(daysAgo(Math.floor(Math.random() * 84)), Math.floor(Math.random() * 12));
     const statusRoll = Math.random();
@@ -82,14 +82,20 @@ async function main() {
     else status = TicketStatus.NEW;
 
     const triagedAt = status !== TicketStatus.NEW ? addHours(createdAt, 4 + Math.floor(Math.random() * 48)) : null;
-    const startedAt =
-      [TicketStatus.IN_PROGRESS, TicketStatus.BLOCKED, TicketStatus.READY_FOR_QA, TicketStatus.DONE].includes(status) && triagedAt
-        ? addHours(triagedAt, 4 + Math.floor(Math.random() * 72))
-        : null;
-    const resolvedAt =
-      [TicketStatus.READY_FOR_QA, TicketStatus.DONE].includes(status) && startedAt
-        ? addHours(startedAt, 6 + Math.floor(Math.random() * 160))
-        : null;
+    const startedStatuses: TicketStatus[] = [
+      TicketStatus.IN_PROGRESS,
+      TicketStatus.BLOCKED,
+      TicketStatus.READY_FOR_QA,
+      TicketStatus.DONE
+    ];
+    const resolvedStatuses: TicketStatus[] = [TicketStatus.READY_FOR_QA, TicketStatus.DONE];
+
+    const startedAt = startedStatuses.includes(status) && triagedAt
+      ? addHours(triagedAt, 4 + Math.floor(Math.random() * 72))
+      : null;
+    const resolvedAt = resolvedStatuses.includes(status) && startedAt
+      ? addHours(startedAt, 6 + Math.floor(Math.random() * 160))
+      : null;
     const closedAt = status === TicketStatus.DONE && resolvedAt ? addHours(resolvedAt, 4 + Math.floor(Math.random() * 48)) : null;
 
     const code = isBug ? `BUG-${String(bugCounter++).padStart(6, '0')}` : `FEAT-${String(featCounter++).padStart(6, '0')}`;

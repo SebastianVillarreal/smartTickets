@@ -25,6 +25,7 @@ services:
       JWT_SECRET: super-secret-demo-key
       UPLOAD_DIR: /app/uploads
       FRONTEND_URL: http://localhost:5173
+      SEED_ON_START: "false"
     ports:
       - "3000:3000"
     depends_on:
@@ -33,7 +34,7 @@ services:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
       - backend_uploads:/app/uploads
-    command: sh -c "npm install && npx prisma generate && npx prisma migrate deploy && npm run seed && npm run start:dev"
+    command: sh -c "npm install && npx prisma generate && npx prisma migrate deploy && if [ \"${SEED_ON_START}\" = \"true\" ]; then npm run seed; fi && npm run start:dev"
 
   frontend:
     build:
