@@ -1,8 +1,9 @@
 export type Role = 'ADMIN' | 'MANAGER' | 'REPORTER' | 'DEVELOPER';
-export type TicketType = 'BUG' | 'FEATURE';
+export type TicketType = 'BUG' | 'SUPPORT' | 'FEATURE';
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type Severity = 'S1' | 'S2' | 'S3' | 'S4';
 export type TicketStatus = 'NEW' | 'TRIAGED' | 'IN_PROGRESS' | 'BLOCKED' | 'READY_FOR_QA' | 'DONE' | 'CANCELLED';
+export type SubtaskStatus = 'TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE';
 
 export type User = {
   id: string;
@@ -45,6 +46,31 @@ export type TicketComment = {
   attachments: Attachment[];
 };
 
+export type SubtaskComment = {
+  id: string;
+  subtaskId: string;
+  authorUserId: string;
+  body: string;
+  createdAt: string;
+  authorUser: Pick<User, 'id' | 'name' | 'role'>;
+};
+
+export type Subtask = {
+  id: string;
+  ticketId: string;
+  title: string;
+  description?: string | null;
+  status: SubtaskStatus;
+  effortHours?: number | null;
+  createdByUserId: string;
+  assignedToUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdByUser?: Pick<User, 'id' | 'name' | 'role'>;
+  assignedToUser?: Pick<User, 'id' | 'name' | 'role'> | null;
+  comments?: SubtaskComment[];
+};
+
 export type Ticket = {
   id: string;
   code: string;
@@ -77,5 +103,7 @@ export type Ticket = {
   assignedToUser?: User | null;
   comments?: TicketComment[];
   attachments?: Attachment[];
+  subtasks?: Subtask[];
+  subtasksHours?: number;
   _count?: { comments: number; attachments: number };
 };

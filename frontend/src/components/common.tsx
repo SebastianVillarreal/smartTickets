@@ -25,5 +25,10 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
 }
 
 export function TypeBadge({ type }: { type: TicketType }) {
-  return <Badge className={type === 'BUG' ? 'bg-red-50 text-red-700' : 'bg-indigo-50 text-indigo-700'}>{type}</Badge>;
+  const styles: Record<TicketType, string> = {
+    BUG: 'bg-red-50 text-red-700',
+    SUPPORT: 'bg-orange-50 text-orange-700',
+    FEATURE: 'bg-indigo-50 text-indigo-700',
+  };
+  return <Badge className={styles[type]}>{type}</Badge>;
 }

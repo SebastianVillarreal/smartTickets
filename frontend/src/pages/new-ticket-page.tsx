@@ -35,11 +35,13 @@ export function NewTicketPage() {
     api.systems.list().then(setSystems);
   }, []);
 
+  const isBugLikeType = form.type === 'BUG' || form.type === 'SUPPORT';
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Nuevo Ticket</h1>
-        <p className="text-sm text-muted-foreground">Registro de BUG o FEATURE con adjuntos iniciales.</p>
+        <p className="text-sm text-muted-foreground">Registro de BUG, SUPPORT o FEATURE con adjuntos iniciales.</p>
       </div>
 
       <Card>
@@ -55,10 +57,10 @@ export function NewTicketPage() {
                 const created = await api.tickets.create({
                   ...form,
                   tags: form.tags,
-                  severity: form.type === 'BUG' ? form.severity : undefined,
-                  stepsToReproduce: form.type === 'BUG' ? form.stepsToReproduce : undefined,
-                  expectedResult: form.type === 'BUG' ? form.expectedResult : undefined,
-                  actualResult: form.type === 'BUG' ? form.actualResult : undefined,
+                  severity: isBugLikeType ? form.severity : undefined,
+                  stepsToReproduce: isBugLikeType ? form.stepsToReproduce : undefined,
+                  expectedResult: isBugLikeType ? form.expectedResult : undefined,
+                  actualResult: isBugLikeType ? form.actualResult : undefined,
                 });
                 if (files.length) await api.tickets.uploadInitialAttachments(created.id, files);
                 navigate(`/tickets/${created.id}`);
@@ -69,7 +71,7 @@ export function NewTicketPage() {
               }
             }}
           >
-            <div><Label>Tipo</Label><Select value={form.type} onChange={(e) => setForm((s) => ({ ...s, type: e.target.value }))}><option value="BUG">BUG</option><option value="FEATURE">FEATURE</option></Select></div>
+            <div><Label>Tipo</Label><Select value={form.type} onChange={(e) => setForm((s) => ({ ...s, type: e.target.value }))}><option value="BUG">BUG</option><option value="SUPPORT">SUPPORT</option><option value="FEATURE">FEATURE</option></Select></div>
             <div>
               <Label>Sistema</Label>
               <Select value={form.systemId} onChange={(e) => setForm((s) => ({ ...s, systemId: e.target.value }))} required>
@@ -81,7 +83,7 @@ export function NewTicketPage() {
             <div className="md:col-span-2"><Label>Descripción</Label><Textarea required value={form.description} onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} /></div>
             <div><Label>Prioridad</Label><Select value={form.priority} onChange={(e) => setForm((s) => ({ ...s, priority: e.target.value }))}>{['LOW','MEDIUM','HIGH','CRITICAL'].map((v) => <option key={v} value={v}>{v}</option>)}</Select></div>
             <div><Label>Ambiente</Label><Select value={form.environment} onChange={(e) => setForm((s) => ({ ...s, environment: e.target.value }))}>{['DEV','QA','PROD'].map((v) => <option key={v} value={v}>{v}</option>)}</Select></div>
-            {form.type === 'BUG' && (
+            {isBugLikeType && (
               <>
                 <div><Label>Severidad</Label><Select value={form.severity} onChange={(e) => setForm((s) => ({ ...s, severity: e.target.value }))}>{['S1','S2','S3','S4'].map((v) => <option key={v} value={v}>{v}</option>)}</Select></div>
                 <div><Label>Reproducible</Label><Select value={String(form.reproducible)} onChange={(e) => setForm((s) => ({ ...s, reproducible: e.target.value === 'true' }))}><option value="true">Sí</option><option value="false">No</option></Select></div>

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "System" ALTER COLUMN "updatedAt" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "Ticket" ALTER COLUMN "updatedAt" DROP DEFAULT,
+ALTER COLUMN "tags" DROP DEFAULT;

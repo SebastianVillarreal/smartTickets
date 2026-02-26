@@ -21,13 +21,25 @@ import {
   UpdateTicketDto,
   WorkflowActionDto,
 } from './dto/ticket.dto';
+import {
+  CreateSubtaskCommentDto,
+  CreateSubtaskDto,
+  UpdateSubtaskDto,
+} from './dto/subtask.dto';
 
 @Injectable()
 export class TicketsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private isBugLikeType(type: TicketType): boolean {
+    return type === TicketType.BUG || type === TicketType.SUPPORT;
+  }
+
   private async nextCode(type: TicketType): Promise<string> {
-    const prefix = type === TicketType.BUG ? 'BUG' : 'FEAT';
+    const prefix =
+      type === TicketType.BUG ? 'BUG'
+      : type === TicketType.SUPPORT ? 'SUP'
+      : 'FEAT';
     const last = await this.prisma.ticket.findFirst({
       where: { type },
       orderBy: { code: 'desc' },
@@ -59,8 +71,8 @@ export class TicketsService {
   }
 
   async create(dto: CreateTicketDto, user: JwtUser) {
-    if (dto.type === TicketType.BUG && !dto.severity) {
-      throw new BadRequestException('severity es obligatorio para BUG');
+    if (this.isBugLikeType(dto.type) && !dto.severity) {
+      throw new BadRequestException('severity es obligatorio para BUG/SUPPORT');
     }
     if (dto.type === TicketType.FEATURE) {
       dto.severity = undefined;
@@ -125,7 +137,25 @@ export class TicketsService {
       this.prisma.ticket.count({ where }),
     ]);
 
-    return { items, total, page, pageSize };
+    const ids = items.map((t) => t.id);
+    const hoursByTicket = ids.length
+      ? await this.prisma.subtask.groupBy({
+          by: ['ticketId'],
+          where: { ticketId: { in: ids } },
+          _sum: { effortHours: true },
+        })
+      : [];
+    const hoursMap = new Map(hoursByTicket.map((row) => [row.ticketId, row._sum.effortHours ?? 0]));
+
+    return {
+      items: items.map((t) => ({
+        ...t,
+        subtasksHours: hoursMap.get(t.id) ?? 0,
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(id: string) {
@@ -146,6 +176,19 @@ export class TicketsService {
             attachments: {
               orderBy: { createdAt: 'asc' },
               include: { uploadedByUser: { select: { id: true, name: true, role: true } } },
+            },
+          },
+        },
+        subtasks: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            createdByUser: { select: { id: true, name: true, role: true } },
+            assignedToUser: { select: { id: true, name: true, role: true } },
+            comments: {
+              orderBy: { createdAt: 'asc' },
+              include: {
+                authorUser: { select: { id: true, name: true, role: true } },
+              },
             },
           },
         },
@@ -261,6 +304,97 @@ export class TicketsService {
     return { success: true };
   }
 
+  async listSubtasks(ticketId: string) {
+    await this.ensureFeatureTicket(ticketId);
+    return this.prisma.subtask.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        createdByUser: { select: { id: true, name: true, role: true } },
+        assignedToUser: { select: { id: true, name: true, role: true } },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { authorUser: { select: { id: true, name: true, role: true } } },
+        },
+      },
+    });
+  }
+
+  async createSubtask(ticketId: string, dto: CreateSubtaskDto, user: JwtUser) {
+    await this.ensureFeatureTicket(ticketId);
+    return this.prisma.subtask.create({
+      data: {
+        ticketId,
+        title: dto.title,
+        description: dto.description,
+        status: dto.status,
+        effortHours: dto.effortHours,
+        createdByUserId: user.sub,
+        assignedToUserId: dto.assignedToUserId ?? null,
+      },
+      include: {
+        createdByUser: { select: { id: true, name: true, role: true } },
+        assignedToUser: { select: { id: true, name: true, role: true } },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { authorUser: { select: { id: true, name: true, role: true } } },
+        },
+      },
+    });
+  }
+
+  async updateSubtask(ticketId: string, subtaskId: string, dto: UpdateSubtaskDto, user: JwtUser) {
+    await this.ensureFeatureTicket(ticketId);
+    const subtask = await this.ensureSubtask(ticketId, subtaskId);
+    return this.prisma.subtask.update({
+      where: { id: subtask.id },
+      data: {
+        title: dto.title,
+        description: dto.description,
+        status: dto.status,
+        effortHours: dto.effortHours,
+        assignedToUser: dto.assignedToUserId !== undefined
+          ? dto.assignedToUserId
+            ? { connect: { id: dto.assignedToUserId } }
+            : { disconnect: true }
+          : undefined,
+      },
+      include: {
+        createdByUser: { select: { id: true, name: true, role: true } },
+        assignedToUser: { select: { id: true, name: true, role: true } },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { authorUser: { select: { id: true, name: true, role: true } } },
+        },
+      },
+    });
+  }
+
+  async deleteSubtask(ticketId: string, subtaskId: string, user: JwtUser) {
+    await this.ensureFeatureTicket(ticketId);
+    const subtask = await this.ensureSubtask(ticketId, subtaskId);
+    if (user.role !== Role.ADMIN && user.role !== Role.MANAGER && subtask.createdByUserId !== user.sub) {
+      throw new ForbiddenException('No autorizado para eliminar subtarea');
+    }
+    await this.prisma.subtask.delete({ where: { id: subtask.id } });
+    return { success: true };
+  }
+
+  async addSubtaskComment(ticketId: string, subtaskId: string, dto: CreateSubtaskCommentDto, user: JwtUser) {
+    await this.ensureFeatureTicket(ticketId);
+    await this.ensureSubtask(ticketId, subtaskId);
+    return this.prisma.subtaskComment.create({
+      data: {
+        subtaskId,
+        authorUserId: user.sub,
+        body: dto.body,
+      },
+      include: {
+        authorUser: { select: { id: true, name: true, role: true } },
+      },
+    });
+  }
+
   private async persistAttachments(
     ticketId: string,
     commentId: string | null,
@@ -298,5 +432,19 @@ export class TicketsService {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
     if (!ticket) throw new NotFoundException('Ticket no encontrado');
     return ticket;
+  }
+
+  private async ensureFeatureTicket(id: string) {
+    const ticket = await this.ensureTicket(id);
+    if (ticket.type !== TicketType.FEATURE) {
+      throw new BadRequestException('Las subtareas solo aplican a tickets FEATURE');
+    }
+    return ticket;
+  }
+
+  private async ensureSubtask(ticketId: string, subtaskId: string) {
+    const subtask = await this.prisma.subtask.findUnique({ where: { id: subtaskId } });
+    if (!subtask || subtask.ticketId !== ticketId) throw new NotFoundException('Subtarea no encontrada');
+    return subtask;
   }
 }

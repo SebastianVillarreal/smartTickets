@@ -60,7 +60,7 @@ export function DashboardPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">Dashboard Dirección</h1>
-        <p className="text-sm text-muted-foreground">Visión ejecutiva de bugs, features y capacidad de resolución.</p>
+        <p className="text-sm text-muted-foreground">Visión ejecutiva de bugs/soporte, features y capacidad de resolución.</p>
       </div>
 
       <Card>
@@ -80,6 +80,7 @@ export function DashboardPage() {
             <Select value={filters.type} onChange={(e) => setFilters((s) => ({ ...s, type: e.target.value }))}>
               <option value="">ALL</option>
               <option value="BUG">BUG</option>
+              <option value="SUPPORT">SUPPORT</option>
               <option value="FEATURE">FEATURE</option>
             </Select>
           </div>

@@ -28,6 +28,11 @@ import {
   UpdateTicketDto,
   WorkflowActionDto,
 } from './dto/ticket.dto';
+import {
+  CreateSubtaskCommentDto,
+  CreateSubtaskDto,
+  UpdateSubtaskDto,
+} from './dto/subtask.dto';
 import { TicketsService } from './tickets.service';
 
 function getUploadDir(): string {
@@ -97,6 +102,45 @@ export class TicketsController {
   @Post(':id/comments')
   addComment(@Param('id') id: string, @Body() dto: CreateCommentDto, @CurrentUser() user: JwtUser) {
     return this.ticketsService.addComment(id, dto, user);
+  }
+
+  @Get(':id/subtasks')
+  listSubtasks(@Param('id') id: string) {
+    return this.ticketsService.listSubtasks(id);
+  }
+
+  @Post(':id/subtasks')
+  createSubtask(@Param('id') id: string, @Body() dto: CreateSubtaskDto, @CurrentUser() user: JwtUser) {
+    return this.ticketsService.createSubtask(id, dto, user);
+  }
+
+  @Patch(':id/subtasks/:subtaskId')
+  updateSubtask(
+    @Param('id') id: string,
+    @Param('subtaskId') subtaskId: string,
+    @Body() dto: UpdateSubtaskDto,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.ticketsService.updateSubtask(id, subtaskId, dto, user);
+  }
+
+  @Delete(':id/subtasks/:subtaskId')
+  deleteSubtask(
+    @Param('id') id: string,
+    @Param('subtaskId') subtaskId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.ticketsService.deleteSubtask(id, subtaskId, user);
+  }
+
+  @Post(':id/subtasks/:subtaskId/comments')
+  addSubtaskComment(
+    @Param('id') id: string,
+    @Param('subtaskId') subtaskId: string,
+    @Body() dto: CreateSubtaskCommentDto,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.ticketsService.addSubtaskComment(id, subtaskId, dto, user);
   }
 
   @Delete(':id/comments/:commentId')

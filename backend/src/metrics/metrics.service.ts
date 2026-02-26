@@ -21,6 +21,10 @@ function median(nums: number[]): number {
   return arr.length % 2 ? arr[mid]! : (arr[mid - 1]! + arr[mid]!) / 2;
 }
 
+function isBugLikeType(type: TicketType): boolean {
+  return type === TicketType.BUG || type === TicketType.SUPPORT;
+}
+
 @Injectable()
 export class MetricsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -57,7 +61,7 @@ export class MetricsService {
     const closedStatuses: TicketStatus[] = [TicketStatus.DONE, TicketStatus.CANCELLED];
 
     const kpiOpenTickets = tickets.filter((t) => !closedStatuses.includes(t.status)).length;
-    const kpiOpenBugs = tickets.filter((t) => t.type === TicketType.BUG && !closedStatuses.includes(t.status)).length;
+    const kpiOpenBugs = tickets.filter((t) => isBugLikeType(t.type) && !closedStatuses.includes(t.status)).length;
     const kpiPendingFeatures = tickets.filter((t) => t.type === TicketType.FEATURE && t.status !== TicketStatus.DONE && t.status !== TicketStatus.CANCELLED).length;
 
     const resolved30 = tickets.filter((t) => t.resolvedAt && t.resolvedAt >= thirtyDaysAgo);
@@ -93,7 +97,7 @@ export class MetricsService {
 
     const statusDistribution = Object.values(TicketStatus).map((status) => ({
       status,
-      bugs: tickets.filter((t) => t.status === status && t.type === TicketType.BUG).length,
+      bugs: tickets.filter((t) => t.status === status && isBugLikeType(t.type)).length,
       features: tickets.filter((t) => t.status === status && t.type === TicketType.FEATURE).length,
     }));
 
@@ -105,7 +109,7 @@ export class MetricsService {
         openBugs: tickets.filter(
           (t) =>
             t.systemId === s.id &&
-            t.type === TicketType.BUG &&
+            isBugLikeType(t.type) &&
             !closedStatuses.includes(t.status),
         ).length,
       }))

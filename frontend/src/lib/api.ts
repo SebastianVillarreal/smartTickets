@@ -1,4 +1,4 @@
-import type { SystemItem, Ticket, User } from './types';
+import type { Subtask, Ticket, SystemItem, User } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 const TOKEN_KEY = 'smarttickets_token';
@@ -73,6 +73,15 @@ export const api = {
       return request(`/tickets/${id}/comments/${commentId}/attachments`, { method: 'POST', body: form });
     },
     deleteAttachment: (ticketId: string, attachmentId: string) => request(`/tickets/${ticketId}/attachments/${attachmentId}`, { method: 'DELETE' }),
+    listSubtasks: (ticketId: string) => request<Subtask[]>(`/tickets/${ticketId}/subtasks`),
+    createSubtask: (ticketId: string, payload: Record<string, unknown>) =>
+      request<Subtask>(`/tickets/${ticketId}/subtasks`, { method: 'POST', body: JSON.stringify(payload) }),
+    updateSubtask: (ticketId: string, subtaskId: string, payload: Record<string, unknown>) =>
+      request<Subtask>(`/tickets/${ticketId}/subtasks/${subtaskId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+    deleteSubtask: (ticketId: string, subtaskId: string) =>
+      request<{ success: boolean }>(`/tickets/${ticketId}/subtasks/${subtaskId}`, { method: 'DELETE' }),
+    addSubtaskComment: (ticketId: string, subtaskId: string, body: string) =>
+      request(`/tickets/${ticketId}/subtasks/${subtaskId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
   },
   metrics: {
     dashboard: (query: Record<string, string | undefined>) => {

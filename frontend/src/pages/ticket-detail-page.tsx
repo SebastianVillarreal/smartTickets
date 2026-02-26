@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, API_URL } from '@/lib/api';
 import { FileDropzone } from '@/components/file-dropzone';
 import { PriorityBadge, StatusBadge, TypeBadge } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, Td, Th } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDate } from '@/lib/utils';
-import type { Ticket, User } from '@/lib/types';
+import type { SubtaskStatus, Ticket, User } from '@/lib/types';
 import { useAuth } from '@/state/auth';
 
 export function TicketDetailPage() {
@@ -20,6 +21,19 @@ export function TicketDetailPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [commentBody, setCommentBody] = useState('');
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [subtaskForm, setSubtaskForm] = useState({
+    title: '',
+    status: 'TODO' as SubtaskStatus,
+    effortHours: '',
+    assignedToUserId: '',
+  });
+  const [subtaskEdits, setSubtaskEdits] = useState<Record<string, {
+    title: string;
+    status: SubtaskStatus;
+    effortHours: string;
+    assignedToUserId: string;
+  }>>({});
+  const [subtaskCommentBodies, setSubtaskCommentBodies] = useState<Record<string, string>>({});
   const [workflow, setWorkflow] = useState({
     status: '',
     assignedToUserId: '',
@@ -51,9 +65,25 @@ export function TicketDetailPage() {
     load();
   }, [id]);
 
+  useEffect(() => {
+    if (!ticket?.subtasks) return;
+    const next: Record<string, { title: string; status: SubtaskStatus; effortHours: string; assignedToUserId: string }> = {};
+    ticket.subtasks.forEach((s) => {
+      next[s.id] = {
+        title: s.title,
+        status: s.status,
+        effortHours: s.effortHours != null ? String(s.effortHours) : '',
+        assignedToUserId: s.assignedToUserId ?? '',
+      };
+    });
+    setSubtaskEdits(next);
+  }, [ticket?.id, ticket?.subtasks]);
+
   if (!ticket) return <div className="rounded-xl border border-border bg-white p-6">Cargando ticket...</div>;
 
   const reporterAttachments = (ticket.attachments ?? []).filter((a) => !a.commentId);
+  const subtasks = ticket.subtasks ?? [];
+  const isBugLikeType = ticket.type === 'BUG' || ticket.type === 'SUPPORT';
 
   return (
     <div className="space-y-4">
@@ -149,6 +179,207 @@ export function TicketDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {ticket.type === 'FEATURE' && (
+            <Card>
+              <CardHeader><CardTitle>Subtareas</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-[1.6fr_0.6fr_0.8fr_auto]">
+                  <div>
+                    <Label>Título</Label>
+                    <Input
+                      value={subtaskForm.title}
+                      placeholder="Ej: Implementar módulo de pagos"
+                      onChange={(e) => setSubtaskForm((s) => ({ ...s, title: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Horas</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={subtaskForm.effortHours}
+                      onChange={(e) => setSubtaskForm((s) => ({ ...s, effortHours: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Asignado</Label>
+                    <Select
+                      value={subtaskForm.assignedToUserId}
+                      onChange={(e) => setSubtaskForm((s) => ({ ...s, assignedToUserId: e.target.value }))}
+                    >
+                      <option value="">Sin asignar</option>
+                      {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      onClick={async () => {
+                        if (!id || !subtaskForm.title.trim()) return;
+                        await api.tickets.createSubtask(id, {
+                          title: subtaskForm.title.trim(),
+                          status: subtaskForm.status,
+                          effortHours: subtaskForm.effortHours === '' ? null : Number(subtaskForm.effortHours),
+                          assignedToUserId: subtaskForm.assignedToUserId || null,
+                        });
+                        setSubtaskForm({ title: '', status: 'TODO', effortHours: '', assignedToUserId: '' });
+                        await load();
+                      }}
+                    >
+                      Agregar subtarea
+                    </Button>
+                  </div>
+                </div>
+
+                {subtasks.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Sin subtareas.</div>
+                ) : (
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Subtarea</Th>
+                        <Th>Status</Th>
+                        <Th>Horas</Th>
+                        <Th>Asignado</Th>
+                        <Th></Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subtasks.map((s) => {
+                        const draft = subtaskEdits[s.id] ?? {
+                          title: s.title,
+                          status: s.status,
+                          effortHours: s.effortHours != null ? String(s.effortHours) : '',
+                          assignedToUserId: s.assignedToUserId ?? '',
+                        };
+                        return (
+                          <Fragment key={s.id}>
+                            <tr key={s.id} className="border-t border-border">
+                              <Td>
+                                <Input
+                                  value={draft.title}
+                                  onChange={(e) => setSubtaskEdits((prev) => ({
+                                    ...prev,
+                                    [s.id]: { ...draft, title: e.target.value },
+                                  }))}
+                                />
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Creado por {s.createdByUser?.name ?? 'Usuario'} · {formatDate(s.createdAt)}
+                                </div>
+                              </Td>
+                              <Td>
+                                <Select
+                                  value={draft.status}
+                                  onChange={(e) => setSubtaskEdits((prev) => ({
+                                    ...prev,
+                                    [s.id]: { ...draft, status: e.target.value as SubtaskStatus },
+                                  }))}
+                                >
+                                  {['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'].map((v) => <option key={v} value={v}>{v}</option>)}
+                                </Select>
+                              </Td>
+                              <Td>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  value={draft.effortHours}
+                                  onChange={(e) => setSubtaskEdits((prev) => ({
+                                    ...prev,
+                                    [s.id]: { ...draft, effortHours: e.target.value },
+                                  }))}
+                                />
+                              </Td>
+                              <Td>
+                                <Select
+                                  value={draft.assignedToUserId}
+                                  onChange={(e) => setSubtaskEdits((prev) => ({
+                                    ...prev,
+                                    [s.id]: { ...draft, assignedToUserId: e.target.value },
+                                  }))}
+                                >
+                                  <option value="">Sin asignar</option>
+                                  {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+                                </Select>
+                              </Td>
+                              <Td className="space-y-2">
+                                <Button
+                                  onClick={async () => {
+                                    if (!id) return;
+                                    await api.tickets.updateSubtask(id, s.id, {
+                                      title: draft.title.trim(),
+                                      status: draft.status,
+                                      effortHours: draft.effortHours === '' ? null : Number(draft.effortHours),
+                                      assignedToUserId: draft.assignedToUserId || null,
+                                    });
+                                    await load();
+                                  }}
+                                >
+                                  Guardar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={async () => {
+                                    if (!id) return;
+                                    await api.tickets.deleteSubtask(id, s.id);
+                                    await load();
+                                  }}
+                                >
+                                  Eliminar
+                                </Button>
+                              </Td>
+                            </tr>
+                            <tr key={`${s.id}-comments`} className="border-t border-border bg-muted/20">
+                              <Td colSpan={5}>
+                                <div className="space-y-2">
+                                  <div className="text-sm font-medium">Comentarios</div>
+                                  {(s.comments ?? []).length === 0 ? (
+                                    <div className="text-xs text-muted-foreground">Sin comentarios.</div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {(s.comments ?? []).map((c) => (
+                                        <div key={c.id} className="rounded-md border border-border bg-white p-2 text-sm">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium">{c.authorUser.name} ({c.authorUser.role})</span>
+                                            <span className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</span>
+                                          </div>
+                                          <div className="mt-1 whitespace-pre-wrap">{c.body}</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2">
+                                    <Textarea
+                                      value={subtaskCommentBodies[s.id] ?? ''}
+                                      onChange={(e) => setSubtaskCommentBodies((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                                      placeholder="Agregar comentario..."
+                                    />
+                                    <Button
+                                      onClick={async () => {
+                                        if (!id) return;
+                                        const body = (subtaskCommentBodies[s.id] ?? '').trim();
+                                        if (!body) return;
+                                        await api.tickets.addSubtaskComment(id, s.id, body);
+                                        setSubtaskCommentBodies((prev) => ({ ...prev, [s.id]: '' }));
+                                        await load();
+                                      }}
+                                    >
+                                      Publicar
+                                    </Button>
+                                  </div>
+                                </div>
+                              </Td>
+                            </tr>
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -194,9 +425,9 @@ export function TicketDetailPage() {
             </CardContent>
           </Card>
 
-          {ticket.type === 'BUG' && (
+          {isBugLikeType && (
             <Card>
-              <CardHeader><CardTitle>Detalle técnico BUG</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Detalle técnico BUG / SUPPORT</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div><span className="font-semibold">Severidad:</span> {ticket.severity ?? '-'}</div>
                 <div><span className="font-semibold">Reproducible:</span> {ticket.reproducible ? 'Sí' : 'No'}</div>
